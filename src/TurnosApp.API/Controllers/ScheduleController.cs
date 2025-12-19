@@ -1,9 +1,10 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TurnosApp.API.Common;
 using TurnosApp.Contracts.Requests;
 using TurnosApp.Contracts.Responses;
+using TurnosApp.Domain.Constants;
 using TurnosApp.Domain.Entities;
 using TurnosApp.Infrastructure.Data;
 
@@ -11,14 +12,18 @@ namespace TurnosApp.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Professional")]
-public class ScheduleController : ControllerBase
+[Authorize(Roles = Roles.Professional)]
+public class ScheduleController : BaseController
 {
     private readonly TurnosDbContext _context;
+    private readonly ILogger<ScheduleController> _logger;
 
-    public ScheduleController(TurnosDbContext context)
+    public ScheduleController(
+        TurnosDbContext context,
+        ILogger<ScheduleController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet("my-schedule")]
@@ -49,14 +54,23 @@ public class ScheduleController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(ScheduleResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ScheduleResponse>> Create(CreateScheduleRequest request)
     {
+        var validationResult = ValidateModelState();
+        if (validationResult != null) return validationResult;
+
         var userId = GetUserId();
         var professional = await _context.Professionals
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
         if (professional == null)
+        {
+            _logger.LogWarning("Profesional no encontrado para el usuario {UserId}", userId);
             return NotFound(new { message = "Profesional no encontrado" });
+        }
 
         // Verificar si ya existe un schedule para este día
         var existingSchedule = await _context.Schedules
@@ -102,14 +116,23 @@ public class ScheduleController : ControllerBase
     }
 
     [HttpPut]
+    [ProducesResponseType(typeof(ScheduleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ScheduleResponse>> Update(UpdateScheduleRequest request)
     {
+        var validationResult = ValidateModelState();
+        if (validationResult != null) return validationResult;
+
         var userId = GetUserId();
         var professional = await _context.Professionals
             .FirstOrDefaultAsync(p => p.UserId == userId);
 
         if (professional == null)
+        {
+            _logger.LogWarning("Profesional no encontrado para el usuario {UserId}", userId);
             return NotFound(new { message = "Profesional no encontrado" });
+        }
 
         var schedule = await _context.Schedules
             .FirstOrDefaultAsync(s => 
@@ -172,10 +195,5 @@ public class ScheduleController : ControllerBase
         return Ok(new { message = "Horario eliminado exitosamente" });
     }
 
-    private int GetUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.Parse(userIdClaim ?? "0");
-    }
 }
 

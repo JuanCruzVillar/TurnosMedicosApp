@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TurnosApp.Domain\TurnosApp.Domain.csproj" />
+    <ProjectReference Include="..\TurnosApp.Contracts\TurnosApp.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

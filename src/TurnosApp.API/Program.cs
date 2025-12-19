@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using TurnosApp.API.Middleware;
 using TurnosApp.Application.Common;
 using TurnosApp.Infrastructure.Data;
 using TurnosApp.Infrastructure.Services;
@@ -120,6 +121,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
+
+// Middleware de manejo de excepciones (debe ir antes de UseAuthentication)
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

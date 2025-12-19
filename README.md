@@ -1,8 +1,27 @@
 # 🩺 TurnosApp – Sistema de Gestión de Turnos Médicos
 
+![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)
+![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+![C#](https://img.shields.io/badge/C%23-9.0-239120?logo=c-sharp&logoColor=white)
+![SQL Server](https://img.shields.io/badge/SQL%20Server-CC2927?logo=microsoft-sql-server&logoColor=white)
+![Entity Framework](https://img.shields.io/badge/EF%20Core-8.0-512BD4?logo=dotnet&logoColor=white)
+
 Aplicación **fullstack** para la gestión de turnos médicos, orientada a **pacientes, profesionales de la salud y administradores**, desarrollada con **.NET 9.0** (Backend) y **React + TypeScript** (Frontend).
 
-El objetivo del proyecto es **simular un sistema real de producción**, aplicando buenas prácticas de **arquitectura, seguridad y diseño de APIs**, y demostrar competencias como **desarrollador Backend / Fullstack Junior**.
+El objetivo del proyecto es **simular un sistema real de producción**, aplicando buenas prácticas de **arquitectura, seguridad y diseño de APIs**, y demostrar competencias como **desarrollador Backend / Fullstack con .NET**.
+
+---
+
+## ⭐ Características Destacadas
+
+- 🔐 **Autenticación JWT** con roles y permisos granulares (Admin, Professional, Patient)
+- 🏗️ **Clean Architecture** con separación de responsabilidades en capas
+- 📊 **Validación de negocio** compleja (solapamiento de turnos, disponibilidad)
+- 🎨 **UI Responsive** con Tailwind CSS (mobile-first)
+- 📚 **API Documentada** con Swagger/OpenAPI interactiva
+- 🔒 **Seguridad** implementada en múltiples capas (BCrypt, JWT, validaciones)
+- 🚀 **Performance** optimizado con React Query para cache y refetch inteligente
 
 ---
 

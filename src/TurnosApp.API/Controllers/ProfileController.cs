@@ -1,7 +1,7 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TurnosApp.API.Common;
 using TurnosApp.Contracts.Requests;
 using TurnosApp.Contracts.Responses;
 using TurnosApp.Domain.Entities;
@@ -12,13 +12,17 @@ namespace TurnosApp.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class ProfileController : ControllerBase
+public class ProfileController : BaseController
 {
     private readonly TurnosDbContext _context;
+    private readonly ILogger<ProfileController> _logger;
 
-    public ProfileController(TurnosDbContext context)
+    public ProfileController(
+        TurnosDbContext context,
+        ILogger<ProfileController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -43,19 +47,22 @@ public class ProfileController : ControllerBase
     }
 
     [HttpPut]
+    [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UserProfileResponse>> UpdateProfile(UpdateProfileRequest request)
     {
+        var validationResult = ValidateModelState();
+        if (validationResult != null) return validationResult;
+
         var userId = GetUserId();
         var user = await _context.Users.FindAsync(userId);
 
         if (user == null)
+        {
+            _logger.LogWarning("Usuario no encontrado: {UserId}", userId);
             return NotFound(new { message = "Usuario no encontrado" });
-
-        if (string.IsNullOrWhiteSpace(request.FirstName))
-            return BadRequest(new { message = "El nombre es requerido" });
-
-        if (string.IsNullOrWhiteSpace(request.LastName))
-            return BadRequest(new { message = "El apellido es requerido" });
+        }
 
         user.FirstName = request.FirstName;
         user.LastName = request.LastName;
@@ -76,25 +83,22 @@ public class ProfileController : ControllerBase
     }
 
     [HttpPost("change-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> ChangePassword(ChangePasswordRequest request)
     {
+        var validationResult = ValidateModelState();
+        if (validationResult != null) return validationResult;
+
         var userId = GetUserId();
         var user = await _context.Users.FindAsync(userId);
 
         if (user == null)
+        {
+            _logger.LogWarning("Usuario no encontrado para cambio de contraseña: {UserId}", userId);
             return NotFound(new { message = "Usuario no encontrado" });
-
-        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
-            return BadRequest(new { message = "La contraseña actual es requerida" });
-
-        if (string.IsNullOrWhiteSpace(request.NewPassword))
-            return BadRequest(new { message = "La nueva contraseña es requerida" });
-
-        if (request.NewPassword != request.ConfirmPassword)
-            return BadRequest(new { message = "Las contraseñas no coinciden" });
-
-        if (request.NewPassword.Length < 6)
-            return BadRequest(new { message = "La nueva contraseña debe tener al menos 6 caracteres" });
+        }
 
         // Verificar contraseña actual
         if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
@@ -107,10 +111,5 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "Contraseña actualizada exitosamente" });
     }
 
-    private int GetUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.Parse(userIdClaim ?? "0");
-    }
 }
 

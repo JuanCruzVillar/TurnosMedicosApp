@@ -1,9 +1,10 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TurnosApp.API.Common;
 using TurnosApp.Contracts.Requests;
 using TurnosApp.Contracts.Responses;
+using TurnosApp.Domain.Constants;
 using TurnosApp.Domain.Entities;
 using TurnosApp.Domain.Enums;
 using TurnosApp.Infrastructure.Data;
@@ -13,13 +14,17 @@ namespace TurnosApp.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class AppointmentsController : ControllerBase
+public class AppointmentsController : BaseController
 {
     private readonly TurnosDbContext _context;
+    private readonly ILogger<AppointmentsController> _logger;
 
-    public AppointmentsController(TurnosDbContext context)
+    public AppointmentsController(
+        TurnosDbContext context,
+        ILogger<AppointmentsController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet("my-appointments")]
@@ -33,19 +38,25 @@ public class AppointmentsController : ControllerBase
             .Include(a => a.Professional).ThenInclude(p => p.Specialty)
             .Include(a => a.Patient).ThenInclude(p => p.User);
 
-        if (userRole == "Patient")
+        if (userRole == Roles.Patient)
         {
             var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
             if (patient == null)
+            {
+                _logger.LogWarning("Paciente no encontrado para el usuario {UserId}", userId);
                 return NotFound(new { message = "Paciente no encontrado" });
+            }
 
             query = query.Where(a => a.PatientId == patient.Id);
         }
-        else if (userRole == "Professional")
+        else if (userRole == Roles.Professional)
         {
             var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
             if (professional == null)
+            {
+                _logger.LogWarning("Profesional no encontrado para el usuario {UserId}", userId);
                 return NotFound(new { message = "Profesional no encontrado" });
+            }
 
             query = query.Where(a => a.ProfessionalId == professional.Id);
         }
@@ -105,13 +116,13 @@ public class AppointmentsController : ControllerBase
         if (appointment == null)
             return NotFound(new { message = "Turno no encontrado" });
 
-        if (userRole == "Patient")
+        if (userRole == Roles.Patient)
         {
             var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
             if (patient == null || appointment.PatientId != patient.Id)
                 return Forbid();
         }
-        else if (userRole == "Professional")
+        else if (userRole == Roles.Professional)
         {
             var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
             if (professional == null || appointment.ProfessionalId != professional.Id)
@@ -156,14 +167,23 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Patient")]
+    [Authorize(Roles = Roles.Patient)]
+    [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AppointmentResponse>> Create(CreateAppointmentRequest request)
     {
+        var validationResult = ValidateModelState();
+        if (validationResult != null) return validationResult;
+
         var userId = GetUserId();
 
         var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
         if (patient == null)
+        {
+            _logger.LogWarning("Perfil de paciente no encontrado para el usuario {UserId}", userId);
             return BadRequest(new { message = "No se encontró el perfil de paciente" });
+        }
 
         var professional = await _context.Professionals
             .Include(p => p.Specialty)
@@ -288,13 +308,13 @@ public class AppointmentsController : ControllerBase
         if (appointment == null)
             return NotFound(new { message = "Turno no encontrado" });
 
-        if (userRole == "Patient")
+        if (userRole == Roles.Patient)
         {
             var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
             if (patient == null || appointment.PatientId != patient.Id)
                 return Forbid();
         }
-        else if (userRole == "Professional")
+        else if (userRole == Roles.Professional)
         {
             var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
             if (professional == null || appointment.ProfessionalId != professional.Id)
@@ -317,7 +337,11 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPatch("{id}/status")]
-    [Authorize(Roles = "Professional,Admin")]
+    [Authorize(Roles = $"{Roles.Professional},{Roles.Admin}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> UpdateStatus(int id, [FromBody] string status)
     {
         var userId = GetUserId();
@@ -326,9 +350,12 @@ public class AppointmentsController : ControllerBase
         var appointment = await _context.Appointments.FindAsync(id);
 
         if (appointment == null)
+        {
+            _logger.LogWarning("Intento de actualizar turno inexistente: {AppointmentId}", id);
             return NotFound(new { message = "Turno no encontrado" });
+        }
 
-        if (userRole == "Professional")
+        if (userRole == Roles.Professional)
         {
             var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
             if (professional == null || appointment.ProfessionalId != professional.Id)
@@ -345,7 +372,10 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPatch("{id}/notes")]
-    [Authorize(Roles = "Professional")]
+    [Authorize(Roles = Roles.Professional)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> UpdateNotes(int id, [FromBody] UpdateAppointmentNotesRequest request)
     {
         var userId = GetUserId();
@@ -368,14 +398,4 @@ public class AppointmentsController : ControllerBase
         return Ok(new { message = "Notas actualizadas exitosamente" });
     }
 
-    private int GetUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.Parse(userIdClaim ?? "0");
-    }
-
-    private string GetUserRole()
-    {
-        return User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
-    }
 }
