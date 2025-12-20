@@ -23,18 +23,18 @@
 
 Aplicación **fullstack** para la gestión de turnos médicos, orientada a **pacientes, profesionales de la salud y administradores**. 
 
-Este proyecto demuestra competencias en:
+En este proyecto trabaje:
 - ✅ **Clean Architecture** con separación de responsabilidades
 - ✅ **APIs REST** bien diseñadas y documentadas
 - ✅ **Autenticación y autorización** con JWT y roles
 - ✅ **Frontend moderno** con React, TypeScript y mejores prácticas
 - ✅ **DevOps básico** con Docker y CI/CD
 
-> 💡 **Nota**: Este es un proyecto de **portfolio** diseñado para demostrar habilidades técnicas y buenas prácticas de desarrollo.
+> 💡 **Nota**: Obviamente es un proyecto personal diseñado para demostrar habilidades técnicas, buenas prácticas de desarrollo y para seguir aprendiendo.
 
 ---
 
-## ⭐ Características Destacadas
+## ⭐ Características 
 
 ### 🔐 Seguridad y Autenticación
 - **JWT Authentication** con roles granulares (Admin, Professional, Patient)
@@ -456,35 +456,11 @@ El seed de la base de datos crea usuarios de prueba:
 dotnet publish -c Release -o ./publish
 ```
 
-3. **Ejecutar migraciones en producción**:
+3. **Ejecutar migraciones en caso de producción**:
 ```bash
 dotnet ef database update --project src/TurnosApp.Infrastructure --startup-project src/TurnosApp.API
 ```
 
-### Frontend (Producción)
-
-1. **Configurar variables de entorno**:
-   - Crear `.env.production` con `VITE_API_URL` apuntando a tu API de producción
-
-2. **Build para producción**:
-```bash
-npm run build
-```
-
-3. **Servir los archivos estáticos**:
-   - Los archivos generados estarán en `dist/`
-   - Puedes servirlos con cualquier servidor estático (Nginx, IIS, Vercel, Netlify, etc.)
-
-### Consideraciones de Seguridad
-
-- ✅ **NUNCA** subas archivos `.env` o `appsettings.Production.json` con credenciales reales
-- ✅ Usa claves JWT seguras y únicas en producción
-- ✅ Configura CORS solo con los orígenes necesarios
-- ✅ Usa HTTPS en producción
-- ✅ Mantén las dependencias actualizadas
-- ✅ Configura rate limiting en producción (recomendado)
-
----
 
 ## 📋 Mejores Prácticas Implementadas
 
@@ -514,11 +490,11 @@ npm run build
 
 ---
 
-## 🎯 Para Recruiters y Entrevistadores
+## 🎯 Que aprendi en este proyecto?
 
 Este proyecto demuestra:
 
-### 💼 Habilidades Técnicas Comprobadas
+### 💼 Habilidades Técnicas 
 - ✅ **Clean Architecture** - Separación de responsabilidades y desacoplamiento
 - ✅ **APIs REST** - Diseño de endpoints siguiendo convenciones
 - ✅ **Autenticación/Autorización** - JWT, roles, middleware personalizado
@@ -544,9 +520,9 @@ Este proyecto demuestra:
 
 ## 🏁 Sobre el proyecto
 
-Este proyecto forma parte de mi **portfolio profesional**, diseñado para demostrar competencias como **desarrollador Backend / Fullstack con .NET**.
+Este es mi 2do proyecto, forma parte de mi proceso de aprendizaje, esta totalmente orientado y diseñado para mostrar los conocimientos que voy adquiriendo.
 
-> 💡 **Objetivo**: Mostrar capacidad para desarrollar aplicaciones fullstack aplicando buenas prácticas de arquitectura, seguridad y diseño, incluso siendo nuevo en la industria.
+> 💡 **Objetivo**: Mostrar capacidad para desarrollar aplicaciones fullstack aplicando buenas prácticas de arquitectura, seguridad y diseño, incluso siendo nuevo en la industria de IT.
 
 ### Tecnologías y Patrones Demostrados
 
@@ -560,9 +536,3 @@ Este proyecto forma parte de mi **portfolio profesional**, diseñado para demost
 
 ---
 
-## 📝 Notas Adicionales
-
-- El proyecto incluye seed de datos para facilitar las pruebas
-- Los logs de desarrollo están condicionados a `import.meta.env.DEV`
-- CORS está configurado para ser más restrictivo en producción
-- Se recomienda usar variables de entorno para configuración sensible
