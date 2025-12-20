@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: turnosapp-db
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - turnosapp-network
+
+  # Backend API
+  api:
+    build:
+      context: ./src/TurnosApp.API
+      dockerfile: Dockerfile
+    container_name: turnosapp-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=TurnosAppDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true
+      - JwtSettings__SecretKey=tu-clave-super-secreta-de-al-menos-32-caracteres-para-desarrollo
+      - JwtSettings__Issuer=TurnosApp
+      - JwtSettings__Audience=TurnosAppClients
+      - JwtSettings__ExpirationMinutes=60
+      - CORS__AllowedOrigins__0=http://localhost:5173
+    ports:
+      - "5294:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - turnosapp-network
+    volumes:
+      - ./src/TurnosApp.API:/app
+    command: >
+      sh -c "
+        echo 'Esperando a que SQL Server esté listo...' &&
+        sleep 10 &&
+        dotnet ef database update --project ../TurnosApp.Infrastructure --startup-project . --no-build &&
+        dotnet run --urls http://0.0.0.0:8080
+      "
+
+volumes:
+  sqlserver_data:
+
+networks:
+  turnosapp-network:
+    driver: bridge
