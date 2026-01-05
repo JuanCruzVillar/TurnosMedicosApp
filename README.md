@@ -21,7 +21,10 @@
 
 ## 📋 Sobre el Proyecto
 
-Aplicación **fullstack** para la gestión de turnos médicos, orientada a **pacientes, profesionales de la salud y administradores**. 
+Aplicación **fullstack** para gestión de turnos médicos, orientada a **pacientes, profesionales de la salud y administradores**. 
+
+Este es mi 2do proyecto, forma parte de mi proceso de aprendizaje, esta totalmente orientado y diseñado para mostrar los conocimientos que voy adquiriendo.
+
 
 En este proyecto trabaje:
 - ✅ **Clean Architecture** con separación de responsabilidades
@@ -33,6 +36,34 @@ En este proyecto trabaje:
 > 💡 **Nota**: Obviamente es un proyecto personal diseñado para demostrar habilidades técnicas, buenas prácticas de desarrollo y para seguir aprendiendo.
 
 ---
+## 🎯 Que aprendi en este proyecto?
+
+Este proyecto demuestra:
+
+### 💼 Habilidades Técnicas 
+- ✅ **Clean Architecture** - Separación de responsabilidades y desacoplamiento
+- ✅ **APIs REST** - Diseño de endpoints siguiendo convenciones
+- ✅ **Autenticación/Autorización** - JWT, roles, middleware personalizado
+- ✅ **Entity Framework Core** - Code First, migraciones, relaciones
+- ✅ **TypeScript** - Type-safety en todo el frontend
+- ✅ **React Moderno** - Hooks, Context, React Query
+- ✅ **DevOps Básico** - Docker, CI/CD con GitHub Actions
+
+### 🧠 Decisiones de Diseño
+- **Clean Architecture**: Elegida para mantener el código mantenible y testeable
+- **JWT**: Stateless, escalable, adecuado para APIs REST
+- **DTOs**: Separación entre entidades de dominio y contratos de API
+- **React Query**: Cache inteligente y sincronización de estado del servidor
+- **Zustand**: Estado global simple y performante
+
+### 📊 Complejidad del Proyecto
+- **3 roles diferentes** con permisos granulares
+- **Validaciones de negocio** complejas (solapamiento de turnos)
+- **Múltiples entidades** relacionadas (User, Professional, Patient, Appointment, Schedule)
+- **Frontend completo** con rutas protegidas y manejo de estado
+
+---
+
 
 ## ⭐ Características 
 
@@ -490,39 +521,7 @@ dotnet ef database update --project src/TurnosApp.Infrastructure --startup-proje
 
 ---
 
-## 🎯 Que aprendi en este proyecto?
 
-Este proyecto demuestra:
-
-### 💼 Habilidades Técnicas 
-- ✅ **Clean Architecture** - Separación de responsabilidades y desacoplamiento
-- ✅ **APIs REST** - Diseño de endpoints siguiendo convenciones
-- ✅ **Autenticación/Autorización** - JWT, roles, middleware personalizado
-- ✅ **Entity Framework Core** - Code First, migraciones, relaciones
-- ✅ **TypeScript** - Type-safety en todo el frontend
-- ✅ **React Moderno** - Hooks, Context, React Query
-- ✅ **DevOps Básico** - Docker, CI/CD con GitHub Actions
-
-### 🧠 Decisiones de Diseño
-- **Clean Architecture**: Elegida para mantener el código mantenible y testeable
-- **JWT**: Stateless, escalable, adecuado para APIs REST
-- **DTOs**: Separación entre entidades de dominio y contratos de API
-- **React Query**: Cache inteligente y sincronización de estado del servidor
-- **Zustand**: Estado global simple y performante
-
-### 📊 Complejidad del Proyecto
-- **3 roles diferentes** con permisos granulares
-- **Validaciones de negocio** complejas (solapamiento de turnos)
-- **Múltiples entidades** relacionadas (User, Professional, Patient, Appointment, Schedule)
-- **Frontend completo** con rutas protegidas y manejo de estado
-
----
-
-## 🏁 Sobre el proyecto
-
-Este es mi 2do proyecto, forma parte de mi proceso de aprendizaje, esta totalmente orientado y diseñado para mostrar los conocimientos que voy adquiriendo.
-
-> 💡 **Objetivo**: Mostrar capacidad para desarrollar aplicaciones fullstack aplicando buenas prácticas de arquitectura, seguridad y diseño, incluso siendo nuevo en la industria de IT.
 
 ### Tecnologías y Patrones Demostrados
 
