@@ -18,6 +18,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TurnosApp.Infrastructure", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TurnosApp.Contracts", "src\TurnosApp.Contracts\TurnosApp.Contracts.csproj", "{3AE8DF8F-1D01-4CD5-B7ED-CB99AD0ADECF}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{1E7D31A2-8ADB-4B6D-AA73-32D2D06E6D35}"
+	ProjectSection(SolutionItems) = preProject
+		backend-ci.yml = backend-ci.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{62A7F2DC-6E8E-4DB7-A81D-61FBA4BFC84C}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -98,5 +108,9 @@ Global
 		{7DB5F0D1-1CCE-4984-AB2F-FFA46070C838} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{2DA16F07-8690-4F2C-A2DB-CFC062429225} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3AE8DF8F-1D01-4CD5-B7ED-CB99AD0ADECF} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1E7D31A2-8ADB-4B6D-AA73-32D2D06E6D35} = {62A7F2DC-6E8E-4DB7-A81D-61FBA4BFC84C}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6B5061E9-6F77-423C-98FF-B869726934E9}
 	EndGlobalSection
 EndGlobal
