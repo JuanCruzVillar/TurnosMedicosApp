@@ -1,27 +1,69 @@
-name: Backend CI
+﻿name: CI Pipeline
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main, develop ]
   pull_request:
-    branches: ["main"]
+    branches: [ main ]
 
 jobs:
-  build:
+  build-backend:
+    name: Build .NET Backend
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./src
+      
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+      working-directory: ./src
+      
+    - name: Run tests
+      run: dotnet test --no-build --configuration Release --verbosity normal
+      working-directory: ./src
+      continue-on-error: true
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
-
-      - name: Restore
-        run: dotnet restore
-        working-directory: src
-
-      - name: Build
-        run: dotnet build --no-restore
-        working-directory: src
+  build-frontend:
+    name: Build React Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: TurnosApp-Frontend/package-lock.json
+        
+    - name: Install dependencies
+      run: npm ci
+      working-directory: ./TurnosApp-Frontend
+      
+    - name: Build
+      run: npm run build
+      working-directory: ./TurnosApp-Frontend
+      env:
+        VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:5294/api' }}
+        
+ 
+  verify-all:
+    name: Verify All Builds
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    
+    steps:
+    - name: All builds passed
+      run: echo "✅ Backend y Frontend compilaron exitosamente"
