@@ -27,85 +27,96 @@ public class AppointmentsController : BaseController
         _logger = logger;
     }
 
+    /// <summary>
+    /// Obtiene los turnos del usuario autenticado (con paginación)
+    /// </summary>
     [HttpGet("my-appointments")]
-    public async Task<ActionResult<IEnumerable<AppointmentResponse>>> GetMyAppointments()
+    public async Task<ActionResult<PagedResponse<AppointmentResponse>>> GetMyAppointments(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null)
     {
-        var userId = GetUserId();
-        var userRole = GetUserRole();
+        var (patient, professional) = await GetUserProfilesAsync();
+
+        if (patient == null && professional == null)
+            return NotFound(new { message = "Perfil de usuario no encontrado" });
 
         IQueryable<Appointment> query = _context.Appointments
             .Include(a => a.Professional).ThenInclude(p => p.User)
             .Include(a => a.Professional).ThenInclude(p => p.Specialty)
             .Include(a => a.Patient).ThenInclude(p => p.User);
 
-        if (userRole == Roles.Patient)
-        {
-            var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (patient == null)
-            {
-                _logger.LogWarning("Paciente no encontrado para el usuario {UserId}", userId);
-                return NotFound(new { message = "Paciente no encontrado" });
-            }
-
+        if (patient != null)
             query = query.Where(a => a.PatientId == patient.Id);
-        }
-        else if (userRole == Roles.Professional)
-        {
-            var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (professional == null)
-            {
-                _logger.LogWarning("Profesional no encontrado para el usuario {UserId}", userId);
-                return NotFound(new { message = "Profesional no encontrado" });
-            }
-
+        else if (professional != null)
             query = query.Where(a => a.ProfessionalId == professional.Id);
-        }
+
+        // Filtro opcional por estado
+        if (!string.IsNullOrEmpty(status) && Enum.TryParse<AppointmentStatus>(status, out var statusEnum))
+            query = query.Where(a => a.Status == statusEnum);
+
+        var totalItems = await query.CountAsync();
 
         var appointments = await query
             .OrderByDescending(a => a.DateTime)
-            .Select(a => new AppointmentResponse
-            {
-                Id = a.Id,
-                DateTime = a.DateTime,
-                DurationMinutes = a.DurationMinutes,
-                Status = a.Status.ToString(),
-                Reason = a.Reason,
-                Notes = a.Notes,
-                Professional = new ProfessionalResponse
-                {
-                    Id = a.Professional.Id,
-                    FirstName = a.Professional.User.FirstName,
-                    LastName = a.Professional.User.LastName,
-                    Email = a.Professional.User.Email,
-                    PhoneNumber = a.Professional.User.PhoneNumber,
-                    LicenseNumber = a.Professional.LicenseNumber,
-                    Specialty = new SpecialtyResponse
-                    {
-                        Id = a.Professional.Specialty.Id,
-                        Name = a.Professional.Specialty.Name,
-                        Description = a.Professional.Specialty.Description,
-                        DurationMinutes = a.Professional.Specialty.DurationMinutes
-                    }
-                },
-                Patient = new PatientResponse
-                {
-                    Id = a.Patient.Id,
-                    FirstName = a.Patient.User.FirstName,
-                    LastName = a.Patient.User.LastName,
-                    Email = a.Patient.User.Email,
-                    PhoneNumber = a.Patient.User.PhoneNumber
-                }
-            })
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(appointments);
+        var response = new PagedResponse<AppointmentResponse>
+        {
+            Items = appointments.Select(a => a.ToResponse()),
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+        };
+
+        return Ok(response);
     }
 
+    /// <summary>
+    /// Obtiene los próximos turnos del usuario (útil para dashboard)
+    /// </summary>
+    [HttpGet("upcoming")]
+    public async Task<ActionResult<IEnumerable<AppointmentResponse>>> GetUpcomingAppointments(
+        [FromQuery] int limit = 5)
+    {
+        var (patient, professional) = await GetUserProfilesAsync();
+
+        if (patient == null && professional == null)
+            return NotFound(new { message = "Perfil de usuario no encontrado" });
+
+        IQueryable<Appointment> query = _context.Appointments
+            .Include(a => a.Professional).ThenInclude(p => p.User)
+            .Include(a => a.Professional).ThenInclude(p => p.Specialty)
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Where(a => a.DateTime > DateTime.UtcNow
+                        && a.Status != AppointmentStatus.Canceled);
+
+        if (patient != null)
+            query = query.Where(a => a.PatientId == patient.Id);
+        else if (professional != null)
+            query = query.Where(a => a.ProfessionalId == professional.Id);
+
+        var appointments = await query
+            .OrderBy(a => a.DateTime)
+            .Take(limit)
+            .ToListAsync();
+
+        return Ok(appointments.Select(a => a.ToResponse()));
+    }
+
+    /// <summary>
+    /// Obtiene un turno por ID
+    /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<AppointmentResponse>> GetById(int id)
     {
-        var userId = GetUserId();
-        var userRole = GetUserRole();
+        var (patient, professional) = await GetUserProfilesAsync();
+
+        if (patient == null && professional == null)
+            return NotFound(new { message = "Perfil de usuario no encontrado" });
 
         var appointment = await _context.Appointments
             .Include(a => a.Professional).ThenInclude(p => p.User)
@@ -116,56 +127,19 @@ public class AppointmentsController : BaseController
         if (appointment == null)
             return NotFound(new { message = "Turno no encontrado" });
 
-        if (userRole == Roles.Patient)
-        {
-            var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (patient == null || appointment.PatientId != patient.Id)
-                return Forbid();
-        }
-        else if (userRole == Roles.Professional)
-        {
-            var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (professional == null || appointment.ProfessionalId != professional.Id)
-                return Forbid();
-        }
+        // Validar permisos
+        if (patient != null && appointment.PatientId != patient.Id)
+            return Forbid();
 
-        var response = new AppointmentResponse
-        {
-            Id = appointment.Id,
-            DateTime = appointment.DateTime,
-            DurationMinutes = appointment.DurationMinutes,
-            Status = appointment.Status.ToString(),
-            Reason = appointment.Reason,
-            Notes = appointment.Notes,
-            Professional = new ProfessionalResponse
-            {
-                Id = appointment.Professional.Id,
-                FirstName = appointment.Professional.User.FirstName,
-                LastName = appointment.Professional.User.LastName,
-                Email = appointment.Professional.User.Email,
-                PhoneNumber = appointment.Professional.User.PhoneNumber,
-                LicenseNumber = appointment.Professional.LicenseNumber,
-                Specialty = new SpecialtyResponse
-                {
-                    Id = appointment.Professional.Specialty.Id,
-                    Name = appointment.Professional.Specialty.Name,
-                    Description = appointment.Professional.Specialty.Description,
-                    DurationMinutes = appointment.Professional.Specialty.DurationMinutes
-                }
-            },
-            Patient = new PatientResponse
-            {
-                Id = appointment.Patient.Id,
-                FirstName = appointment.Patient.User.FirstName,
-                LastName = appointment.Patient.User.LastName,
-                Email = appointment.Patient.User.Email,
-                PhoneNumber = appointment.Patient.User.PhoneNumber
-            }
-        };
+        if (professional != null && appointment.ProfessionalId != professional.Id)
+            return Forbid();
 
-        return Ok(response);
+        return Ok(appointment.ToResponse());
     }
 
+    /// <summary>
+    /// Crea un nuevo turno (solo pacientes)
+    /// </summary>
     [HttpPost]
     [Authorize(Roles = Roles.Patient)]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status201Created)]
@@ -176,12 +150,10 @@ public class AppointmentsController : BaseController
         var validationResult = ValidateModelState();
         if (validationResult != null) return validationResult;
 
-        var userId = GetUserId();
-
-        var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
+        var (patient, _) = await GetUserProfilesAsync();
         if (patient == null)
         {
-            _logger.LogWarning("Perfil de paciente no encontrado para el usuario {UserId}", userId);
+            _logger.LogWarning("Perfil de paciente no encontrado para el usuario {UserId}", GetUserId());
             return BadRequest(new { message = "No se encontró el perfil de paciente" });
         }
 
@@ -192,45 +164,50 @@ public class AppointmentsController : BaseController
         if (professional == null)
             return NotFound(new { message = "Profesional no encontrado" });
 
-        if (request.DateTime <= DateTime.Now)
-            return BadRequest(new { message = "La fecha debe ser futura" });
+        // Validar fecha futura (con buffer de 15 minutos)
+        if (request.DateTime.ToUniversalTime() <= DateTime.UtcNow.AddMinutes(15))
+            return BadRequest(new { message = "La fecha debe ser al menos 15 minutos en el futuro" });
 
+        // Validar que el profesional atienda ese día
         var dayOfWeek = request.DateTime.DayOfWeek;
         var schedule = await _context.Schedules
-            .FirstOrDefaultAsync(s => 
-                s.ProfessionalId == request.ProfessionalId 
-                && s.DayOfWeek == dayOfWeek 
+            .FirstOrDefaultAsync(s =>
+                s.ProfessionalId == request.ProfessionalId
+                && s.DayOfWeek == dayOfWeek
                 && s.IsActive);
 
         if (schedule == null)
             return BadRequest(new { message = "El profesional no atiende ese día" });
 
+        // Validar horario dentro del rango de atención
         var timeOfDay = request.DateTime.TimeOfDay;
         var duration = TimeSpan.FromMinutes(professional.Specialty.DurationMinutes);
 
         if (timeOfDay < schedule.StartTime || timeOfDay.Add(duration) > schedule.EndTime)
             return BadRequest(new { message = "El horario está fuera del rango de atención" });
 
-        // Validar overlapping - CORREGIDO: traer a memoria primero
+        // Validar overlapping de turnos (OPTIMIZADO)
         var requestEnd = request.DateTime.AddMinutes(professional.Specialty.DurationMinutes);
-        
-        var existingAppointments = await _context.Appointments
-            .Where(a => 
+
+        var conflictingAppointments = await _context.Appointments
+            .Where(a =>
                 a.ProfessionalId == request.ProfessionalId
                 && a.Status != AppointmentStatus.Canceled
-                && a.DateTime.Date == request.DateTime.Date)
-            .ToListAsync(); // Traer a memoria
+                && a.DateTime.Date == request.DateTime.Date
+                && a.DateTime < requestEnd) // Pre-filtro en DB
+            .Select(a => new { a.DateTime, a.DurationMinutes })
+            .ToListAsync();
 
-        // Validar en memoria
-        var hasConflict = existingAppointments.Any(a =>
+        var hasConflict = conflictingAppointments.Any(a =>
         {
             var existingEnd = a.DateTime.AddMinutes(a.DurationMinutes);
-            return a.DateTime < requestEnd && request.DateTime < existingEnd;
+            return request.DateTime < existingEnd;
         });
 
         if (hasConflict)
             return BadRequest(new { message = "El horario ya está ocupado" });
 
+        // Crear turno
         var appointment = new Appointment
         {
             ProfessionalId = request.ProfessionalId,
@@ -244,6 +221,7 @@ public class AppointmentsController : BaseController
         _context.Appointments.Add(appointment);
         await _context.SaveChangesAsync();
 
+        // Cargar relaciones para el response
         await _context.Entry(appointment)
             .Reference(a => a.Professional)
             .Query()
@@ -257,7 +235,149 @@ public class AppointmentsController : BaseController
             .Include(p => p.User)
             .LoadAsync();
 
-        var response = new AppointmentResponse
+        return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, appointment.ToResponse());
+    }
+
+    /// <summary>
+    /// Cancela un turno
+    /// </summary>
+    [HttpPost("{id}/cancel")]
+    public async Task<ActionResult> Cancel(int id, CancelAppointmentRequest request)
+    {
+        var (patient, professional) = await GetUserProfilesAsync();
+
+        if (patient == null && professional == null)
+            return NotFound(new { message = "Perfil de usuario no encontrado" });
+
+        var appointment = await _context.Appointments.FindAsync(id);
+
+        if (appointment == null)
+            return NotFound(new { message = "Turno no encontrado" });
+
+        // Validar permisos
+        if (patient != null && appointment.PatientId != patient.Id)
+            return Forbid();
+
+        if (professional != null && appointment.ProfessionalId != professional.Id)
+            return Forbid();
+
+        // Validar estado
+        if (appointment.Status == AppointmentStatus.Canceled)
+            return BadRequest(new { message = "El turno ya está cancelado" });
+
+        if (appointment.Status == AppointmentStatus.Completed)
+            return BadRequest(new { message = "No se puede cancelar un turno completado" });
+
+        appointment.Status = AppointmentStatus.Canceled;
+        appointment.CanceledAt = DateTime.UtcNow;
+        appointment.CancellationReason = request.Reason;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Turno cancelado exitosamente" });
+    }
+
+    /// <summary>
+    /// Actualiza el estado de un turno (solo profesionales y admins)
+    /// </summary>
+    [HttpPatch("{id}/status")]
+    [Authorize(Roles = $"{Roles.Professional},{Roles.Admin}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> UpdateStatus(int id, UpdateAppointmentStatusRequest request)
+    {
+        var userRole = GetUserRole();
+
+        var appointment = await _context.Appointments.FindAsync(id);
+
+        if (appointment == null)
+        {
+            _logger.LogWarning("Intento de actualizar turno inexistente: {AppointmentId}", id);
+            return NotFound(new { message = "Turno no encontrado" });
+        }
+
+        // Si es profesional, validar que sea su turno
+        if (userRole == Roles.Professional)
+        {
+            var (_, professional) = await GetUserProfilesAsync();
+            if (professional == null || appointment.ProfessionalId != professional.Id)
+                return Forbid();
+        }
+
+        appointment.Status = request.Status;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Estado actualizado exitosamente" });
+    }
+
+    /// <summary>
+    /// Actualiza las notas de un turno (solo profesionales)
+    /// </summary>
+    [HttpPatch("{id}/notes")]
+    [Authorize(Roles = Roles.Professional)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> UpdateNotes(int id, UpdateAppointmentNotesRequest request)
+    {
+        var (_, professional) = await GetUserProfilesAsync();
+
+        if (professional == null)
+            return NotFound(new { message = "Profesional no encontrado" });
+
+        var appointment = await _context.Appointments.FindAsync(id);
+
+        if (appointment == null)
+            return NotFound(new { message = "Turno no encontrado" });
+
+        if (appointment.ProfessionalId != professional.Id)
+            return Forbid();
+
+        appointment.Notes = request.Notes;
+        appointment.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Notas actualizadas exitosamente" });
+    }
+
+    // ==================== MÉTODOS PRIVADOS ====================
+
+    /// <summary>
+    /// Obtiene el perfil del usuario autenticado (Patient o Professional)
+    /// </summary>
+    private async Task<(Patient? patient, Professional? professional)> GetUserProfilesAsync()
+    {
+        var userId = GetUserId();
+        var userRole = GetUserRole();
+
+        if (userRole == Roles.Patient)
+        {
+            var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
+            return (patient, null);
+        }
+        else if (userRole == Roles.Professional)
+        {
+            var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
+            return (null, professional);
+        }
+
+        return (null, null);
+    }
+}
+
+// ==================== EXTENSIONES ====================
+
+public static class AppointmentExtensions
+{
+    public static AppointmentResponse ToResponse(this Appointment appointment)
+    {
+        return new AppointmentResponse
         {
             Id = appointment.Id,
             DateTime = appointment.DateTime,
@@ -290,112 +410,5 @@ public class AppointmentsController : BaseController
                 PhoneNumber = appointment.Patient.User.PhoneNumber
             }
         };
-
-        return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, response);
     }
-
-    [HttpPost("{id}/cancel")]
-    public async Task<ActionResult> Cancel(int id, CancelAppointmentRequest request)
-    {
-        var userId = GetUserId();
-        var userRole = GetUserRole();
-
-        var appointment = await _context.Appointments
-            .Include(a => a.Professional)
-            .Include(a => a.Patient)
-            .FirstOrDefaultAsync(a => a.Id == id);
-
-        if (appointment == null)
-            return NotFound(new { message = "Turno no encontrado" });
-
-        if (userRole == Roles.Patient)
-        {
-            var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (patient == null || appointment.PatientId != patient.Id)
-                return Forbid();
-        }
-        else if (userRole == Roles.Professional)
-        {
-            var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (professional == null || appointment.ProfessionalId != professional.Id)
-                return Forbid();
-        }
-
-        if (appointment.Status == AppointmentStatus.Canceled)
-            return BadRequest(new { message = "El turno ya está cancelado" });
-
-        if (appointment.Status == AppointmentStatus.Completed)
-            return BadRequest(new { message = "No se puede cancelar un turno completado" });
-
-        appointment.Status = AppointmentStatus.Canceled;
-        appointment.CanceledAt = DateTime.UtcNow;
-        appointment.CancellationReason = request.Reason;
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = "Turno cancelado exitosamente" });
-    }
-
-    [HttpPatch("{id}/status")]
-    [Authorize(Roles = $"{Roles.Professional},{Roles.Admin}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> UpdateStatus(int id, [FromBody] string status)
-    {
-        var userId = GetUserId();
-        var userRole = GetUserRole();
-
-        var appointment = await _context.Appointments.FindAsync(id);
-
-        if (appointment == null)
-        {
-            _logger.LogWarning("Intento de actualizar turno inexistente: {AppointmentId}", id);
-            return NotFound(new { message = "Turno no encontrado" });
-        }
-
-        if (userRole == Roles.Professional)
-        {
-            var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (professional == null || appointment.ProfessionalId != professional.Id)
-                return Forbid();
-        }
-
-        if (!Enum.TryParse<AppointmentStatus>(status, out var newStatus))
-            return BadRequest(new { message = "Estado inválido" });
-
-        appointment.Status = newStatus;
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = "Estado actualizado exitosamente" });
-    }
-
-    [HttpPatch("{id}/notes")]
-    [Authorize(Roles = Roles.Professional)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> UpdateNotes(int id, [FromBody] UpdateAppointmentNotesRequest request)
-    {
-        var userId = GetUserId();
-        var professional = await _context.Professionals.FirstOrDefaultAsync(p => p.UserId == userId);
-
-        if (professional == null)
-            return NotFound(new { message = "Profesional no encontrado" });
-
-        var appointment = await _context.Appointments.FindAsync(id);
-
-        if (appointment == null)
-            return NotFound(new { message = "Turno no encontrado" });
-
-        if (appointment.ProfessionalId != professional.Id)
-            return Forbid("No tienes permiso para actualizar este turno");
-
-        appointment.Notes = request.Notes;
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = "Notas actualizadas exitosamente" });
-    }
-
 }
